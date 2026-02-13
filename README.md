@@ -86,7 +86,7 @@ Copy that value into your .env file
 STRIPE_WEBHOOK_SECRET=whsec_123456789
 Restart the backend after adding it.
 
-## 4 Test Paymen
+## 4 Test Payment
 Use Stripe’s test card:
 - Card Number: 4242 4242 4242 4242
 - Expiry: Any future date
@@ -101,6 +101,10 @@ This project includes **Swagger UI** for interactive API exploration and testing
 Once the backend server is running, open:
 http://localhost:5000/api-docs
 
+## Test credentials 
+HR: email: hr@company.com / password:  password123
+
+Employee: email: john@company.com / password: password123
 
 
 
