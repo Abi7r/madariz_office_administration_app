@@ -79,12 +79,51 @@ Download and install from:  https://stripe.com/docs/stripe-cli
 type stripe login in cmd/powershell
 
 ## 3 Run Webhook Listener
-stripe listen --forward-to localhost:5000/api/payments/webhook
+stripe listen --forward-to localhost:5000/api/payments/webhook/stripe
 It will output something like:
 whsec_123456789
 Copy that value into your .env file
 STRIPE_WEBHOOK_SECRET=whsec_123456789
 Restart the backend after adding it.
+IMPORTANT: Keep the stripe listen command running in a separate terminal while testing!
+
+Login as HR:
+
+Go to http://localhost:5173
+Email: hr@company.com
+Password: password123
+Role: HR
+
+
+Create Invoice:
+
+Approve time logs in "Day-End Review"
+Go to "Billing" → Create Invoice
+Select client, task, and approved logs
+Submit to generate invoice
+
+
+Make Online Payment:
+
+Go to "Payments" page
+Find invoice in "Online Payment - Outstanding Invoices" section
+Click "Pay Online with Stripe →"
+Enter test card details (see below)
+Click "Pay"
+
+
+Verify Webhook:
+
+Check Terminal 3 (Stripe CLI)
+Should see: [200] POST /api/payments/webhook/stripe [evt_xxxxx]
+This confirms webhook was received and processed
+
+
+Verify Auto-Updates:
+
+Refresh "Payments" page → Payment status: COMPLETED 
+Go to "Ledger" → See CREDIT entry with Stripe transaction ID 
+Go to "Billing" → Outstanding reduced to ₹0 
 
 ## 4 Test Payment
 Use Stripe’s test card:
