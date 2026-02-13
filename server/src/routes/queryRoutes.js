@@ -62,8 +62,43 @@ router.post(
   ],
   queryController.raiseQuery,
 );
-
+/**
+ * @swagger
+ * /api/queries:
+ *   get:
+ *     summary: Get all queries (HR sees all, employee sees own)
+ *     tags: [Queries]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of queries
+ *       401:
+ *         description: Not authorized
+ */
 router.get("/", queryController.getQueries);
+/**
+ * @swagger
+ * /api/queries/{id}:
+ *   get:
+ *     summary: Get query by ID
+ *     tags: [Queries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Query details
+ *       401:
+ *         description: Not authorized
+ *       404:
+ *         description: Query not found
+ */
 router.get("/:id", queryController.getQueryById);
 
 /**

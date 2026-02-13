@@ -26,6 +26,12 @@ exports.startWork = async (req, res) => {
         .json({ message: "Cannot log time on unassigned subtask" });
     }
 
+    if (subtask.status === "OUTSTANDING") {
+      return res.status(400).json({
+        message: "Subtask is marked as OUTSTANDING. HR intervention required.",
+      });
+    }
+
     // Check if there's an open query
     const openQuery = await Query.findOne({
       subtask: subtaskId,
@@ -243,7 +249,68 @@ exports.getPendingLogs = async (req, res) => {
   }
 };
 
+// exports.approveTimeLog = async (req, res) => {
+//   try {
+//     const { editedHours } = req.body;
 
+//     const timeLog = await TimeLog.findById(req.params.id).populate({
+//       path: "subtask",
+//       populate: {
+//         path: "task",
+//         populate: { path: "client" },
+//       },
+//     });
+
+//     if (!timeLog) {
+//       return res.status(404).json({ message: "Time log not found" });
+//     }
+
+//     timeLog.status = "APPROVED";
+//     timeLog.approvedBy = req.user.id;
+//     timeLog.approvedAt = new Date();
+
+//     if (editedHours !== undefined) {
+//       timeLog.editedHours = editedHours;
+//     }
+//     timeLog.billedAmount = amount;
+//     await timeLog.save();
+
+//     const approvedHours =
+//       editedHours !== undefined ? Number(editedHours) : timeLog.duration / 60;
+
+//     const client = timeLog.subtask.task.client;
+//     const rate = client.hourlyRate;
+//     const amount = approvedHours * rate;
+
+//     timeLog.billedAmount = amount;
+//     await timeLog.save();
+
+//     // Get last balance
+//     const lastEntry = await LedgerEntry.findOne({ client: client._id }).sort({
+//       date: -1,
+//     });
+
+//     const previousBalance = lastEntry ? lastEntry.balance : 0;
+//     const newBalance = previousBalance + amount;
+
+//     await LedgerEntry.create({
+//       client: client._id,
+//       date: new Date(),
+//       description: `Work on ${timeLog.subtask.title}`,
+//       debit: amount,
+//       credit: 0,
+//       balance: newBalance,
+//     });
+
+//     res.json({
+//       message: "Time log approved and billed",
+//       billedAmount: amount,
+//       timeLog,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: err.message });
+//   }
+// };
 exports.approveTimeLog = async (req, res) => {
   try {
     const { editedHours } = req.body;
@@ -260,29 +327,26 @@ exports.approveTimeLog = async (req, res) => {
       return res.status(404).json({ message: "Time log not found" });
     }
 
-    timeLog.status = "APPROVED";
-    timeLog.approvedBy = req.user.id;
-    timeLog.approvedAt = new Date();
-    timeLog.billedAmount = amount;
-
-    if (editedHours !== undefined) {
-      timeLog.editedHours = editedHours;
-    }
-
-    await timeLog.save();
-
     const approvedHours =
       editedHours !== undefined ? Number(editedHours) : timeLog.duration / 60;
 
     const client = timeLog.subtask.task.client;
     const rate = client.hourlyRate;
-
     const amount = approvedHours * rate;
 
+    // Update time log
+    timeLog.status = "APPROVED";
+    timeLog.approvedBy = req.user.id;
+    timeLog.approvedAt = new Date();
+    timeLog.editedHours = editedHours !== undefined ? editedHours : undefined;
+    timeLog.billedAmount = amount;
+
+    await timeLog.save();
+
     // Get last balance
-    const lastEntry = await LedgerEntry.findOne({ client: client._id }).sort({
-      date: -1,
-    });
+    const lastEntry = await LedgerEntry.findOne({
+      client: client._id,
+    }).sort({ date: -1 });
 
     const previousBalance = lastEntry ? lastEntry.balance : 0;
     const newBalance = previousBalance + amount;

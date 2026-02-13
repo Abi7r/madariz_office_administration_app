@@ -61,9 +61,50 @@ router.post(
   ],
   billingController.createBilling,
 );
-
+/**
+ * @swagger
+ * /api/billings:
+ *   get:
+ *     summary: Get all billings
+ *     tags: [Billing]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of all billings
+ */
 router.get("/", billingController.getBillings);
+/**
+ * @swagger
+ * /api/billings/outstanding:
+ *   get:
+ *     summary: Get outstanding billings
+ *     tags: [Billing]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of outstanding billings
+ */
 router.get("/outstanding", billingController.getOutstandingBillings);
+/**
+ * @swagger
+ * /api/billings/{id}:
+ *   get:
+ *     summary: Get billing by ID
+ *     tags: [Billing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Billing details
+ */
 router.get("/:id", billingController.getBillingById);
 
 module.exports = router;

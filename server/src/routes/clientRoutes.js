@@ -66,9 +66,93 @@ router.post(
  *         description: Not authorized
  */
 router.get("/", clientController.getClients);
-
+/**
+ * @swagger
+ * /api/clients/{id}:
+ *   get:
+ *     summary: Get client by ID
+ *     tags: [Clients]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Client details
+ */
 router.get("/:id", clientController.getClientById);
+/**
+ * @swagger
+ * /api/clients/{id}:
+ *   put:
+ *     summary: Update client (HR only)
+ *     tags: [Clients]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               gstNumber:
+ *                 type: string
+ *               hourlyRate:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Client updated successfully
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: HR only
+ *       404:
+ *         description: Client not found
+ */
 router.put("/:id", isHR, clientController.updateClient);
+/**
+ * @swagger
+ * /api/clients/{id}:
+ *   delete:
+ *     summary: Delete client (HR only)
+ *     tags: [Clients]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Client deleted successfully
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: HR only
+ *       404:
+ *         description: Client not found
+ */
 router.delete("/:id", isHR, clientController.deleteClient);
 
 module.exports = router;

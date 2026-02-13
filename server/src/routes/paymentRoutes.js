@@ -101,8 +101,37 @@ router.post(
   [body("billingId").notEmpty(), body("amount").isNumeric()],
   paymentController.createStripePayment,
 );
-
+/**
+ * @swagger
+ * /api/payments:
+ *   get:
+ *     summary: Get all payments
+ *     tags: [Payments]
+ *     security: 
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of all payments
+ */
 router.get("/", paymentController.getPayments);
+/**
+ * @swagger
+ * /api/payments/{id}:
+ *   get:
+ *     summary: Get payment by ID
+ *     tags: [Payments]
+ *     security: 
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Payment details
+ */
 router.get("/:id", paymentController.getPaymentById);
 
 module.exports = router;

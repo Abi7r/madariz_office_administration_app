@@ -84,8 +84,31 @@ router.post(
   [body("timeLogId").notEmpty()],
   timeLogController.stopWork,
 );
-
+/**
+ * @swagger
+ * /api/timelogs/active:
+ *   get:
+ *     summary: Get active timelog
+ *     tags: [TimeLogs]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Active timelog
+ */
 router.get("/active", timeLogController.getActiveTimer);
+/**
+ * @swagger
+ * /api/timelogs/today:
+ *   get:
+ *     summary: Get today's timelogs
+ *     tags: [TimeLogs]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of today's timelogs
+ */
 router.get("/today", timeLogController.getTodayLogs);
 /**
  * @swagger
@@ -180,6 +203,18 @@ router.post(
   [body("rejectionReason").notEmpty()],
   timeLogController.rejectTimeLog,
 );
+/**
+ * @swagger
+ * /api/timelogs:
+ *   get:
+ *     summary: Get all timelogs
+ *     tags: [TimeLogs]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of timelogs
+ */
 router.get("/", timeLogController.getTimeLogs);
 
 module.exports = router;

@@ -64,6 +64,18 @@ router.post(
   ],
   subtaskController.createSubtask,
 );
+/**
+ * @swagger
+ * /api/subtasks:
+ *   get:
+ *     summary: Get all subtasks
+ *     tags: [Subtasks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of subtasks
+ */
 
 router.get("/", subtaskController.getSubtasks);
 
@@ -82,9 +94,94 @@ router.get("/", subtaskController.getSubtasks);
  *         description: Not authorized
  */
 router.get("/my", subtaskController.getMySubtasks);
-
+/**
+ * @swagger
+ * /api/subtasks/{id}:
+ *   get:
+ *     summary: Get subtask by ID
+ *     tags: [Subtasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Subtask details
+ */
 router.get("/:id", subtaskController.getSubtaskById);
+/**
+ * @swagger
+ * /api/subtasks/{id}:
+ *   put:
+ *     summary: Update subtask (HR only)
+ *     tags: [Subtasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               task:
+ *                 type: string
+ *               assignedTo:
+ *                 type: string
+ *               estimatedHours:
+ *                 type: number
+ *               status:
+ *                 type: string
+ *                 enum: [PENDING, IN_PROGRESS, COMPLETED]
+ *     responses:
+ *       200:
+ *         description: Subtask updated successfully
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: HR only
+ *       404:
+ *         description: Subtask not found
+ */
 router.put("/:id", isHR, subtaskController.updateSubtask);
+/**
+ * @swagger
+ * /api/subtasks/{id}:
+ *   delete:
+ *     summary: Delete subtask (HR only)
+ *     tags: [Subtasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Subtask deleted successfully
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: HR only
+ *       404:
+ *         description: Subtask not found
+ */
 router.delete("/:id", isHR, subtaskController.deleteSubtask);
 
 module.exports = router;

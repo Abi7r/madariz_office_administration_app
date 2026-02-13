@@ -30,7 +30,7 @@ const subtaskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["PENDING", "IN_PROGRESS", "ON_HOLD", "COMPLETED"],
+      enum: ["PENDING", "IN_PROGRESS", "ON_HOLD", "COMPLETED", "OUTSTANDING"],
       default: "PENDING",
     },
     createdBy: {
