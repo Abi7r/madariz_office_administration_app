@@ -4,6 +4,7 @@ import {
   createBilling,
   getTasks,
   getClients,
+  getTimeLogs,
 } from "../../services/api";
 import api from "../../services/api";
 
@@ -46,11 +47,18 @@ export default function Billing() {
       console.log("Loading approved logs...");
 
       // Get ALL approved logs with deep population
-      const response = await api.get("/timelogs", {
-        params: { status: "APPROVED" },
-      });
+      const response = await getTimeLogs({ status: "APPROVED" }); // Use the new function
 
       console.log("All approved logs from API:", response.data);
+
+      if (!response.data || response.data.length === 0) {
+        console.warn(
+          "No approved logs found. Make sure to approve some logs first!",
+        );
+        setApprovedLogs([]);
+        setLoading(false);
+        return;
+      }
 
       // Filter out logs that are already billed
       const unbilledLogs = response.data.filter((log) => {

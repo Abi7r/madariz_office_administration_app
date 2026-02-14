@@ -7,28 +7,85 @@ exports.approveTimeLog = async (req, res) => {
   try {
     const { editedHours } = req.body;
 
-    const timeLog = await TimeLog.findById(req.params.id);
+    console.log(`Approving time log ${req.params.id}`, { editedHours });
+
+    const timeLog = await TimeLog.findById(req.params.id).populate({
+      path: "subtask",
+      populate: { path: "task" },
+    });
+
     if (!timeLog) {
       return res.status(404).json({ message: "Time log not found" });
     }
 
+    // Update time log status
     timeLog.status = "APPROVED";
     timeLog.approvedBy = req.user.id;
     timeLog.approvedAt = new Date();
 
-    if (editedHours !== undefined) {
-      timeLog.editedHours = editedHours;
+    if (
+      editedHours !== undefined &&
+      editedHours !== null &&
+      editedHours !== ""
+    ) {
+      timeLog.editedHours = parseFloat(editedHours);
+      console.log(
+        `Hours edited from ${(timeLog.duration / 60).toFixed(2)}h to ${editedHours}h`,
+      );
     }
 
     await timeLog.save();
-    await timeLog.populate("employee subtask approvedBy");
+
+    // RECALCULATE SUBTASK LOGGED HOURS
+    const subtask = await Subtask.findById(timeLog.subtask._id);
+
+    if (subtask) {
+      // Get all approved logs for this subtask
+      const allApprovedLogs = await TimeLog.find({
+        subtask: subtask._id,
+        status: "APPROVED",
+      });
+
+      // Calculate total using edited hours where available
+      const totalMinutes = allApprovedLogs.reduce((sum, log) => {
+        const hours =
+          log.editedHours !== undefined ? log.editedHours : log.duration / 60;
+        return sum + hours * 60;
+      }, 0);
+
+      const newLoggedHours = (totalMinutes / 60).toFixed(2);
+      const oldLoggedHours = subtask.loggedHours;
+
+      subtask.loggedHours = newLoggedHours;
+
+      console.log(
+        ` Subtask logged hours updated: ${oldLoggedHours}h → ${newLoggedHours}h`,
+      );
+
+      // AUTO-COMPLETE SUBTASK IF HOURS THRESHOLD MET
+      if (
+        parseFloat(newLoggedHours) >= subtask.estimatedHours &&
+        subtask.status !== "COMPLETED"
+      ) {
+        subtask.status = "COMPLETED";
+        console.log(
+          `Subtask auto-completed: ${newLoggedHours}h >= ${subtask.estimatedHours}h estimated`,
+        );
+      }
+
+      await subtask.save();
+    }
+
+    await timeLog.populate("employee approvedBy");
 
     res.json({
       message: "Time log approved",
       timeLog,
+      subtaskLoggedHours: subtask?.loggedHours,
+      subtaskStatus: subtask?.status,
     });
   } catch (err) {
-    console.error("Approve error:", err);
+    console.error("Approve time log error:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -219,23 +276,41 @@ exports.getTimeLogs = async (req, res) => {
       filter.date = { $gte: startDate, $lt: endDate };
     }
 
+    console.log("📊 Fetching time logs with filter:", filter);
+
     const logs = await TimeLog.find(filter)
-      .populate("employee")
+      .populate("employee", "name email")
       .populate({
         path: "subtask",
         populate: {
           path: "task",
           populate: {
-            path: "client",
+            path: "client", // ← CRITICAL: Deep populate
           },
         },
       })
-      .populate("approvedBy")
+      .populate("approvedBy", "name email")
       .sort({ date: -1, startTime: -1 });
+
+    console.log(`✅ Found ${logs.length} time logs`);
+
+    // Debug first log
+    if (logs.length > 0 && logs[0].subtask) {
+      console.log("🔍 First log structure check:", {
+        logId: logs[0]._id,
+        hasSubtask: !!logs[0].subtask,
+        subtaskId: logs[0].subtask?._id,
+        hasTask: !!logs[0].subtask?.task,
+        taskId: logs[0].subtask?.task?._id,
+        hasClient: !!logs[0].subtask?.task?.client,
+        clientId: logs[0].subtask?.task?.client?._id,
+        clientName: logs[0].subtask?.task?.client?.name,
+      });
+    }
 
     res.json(logs);
   } catch (err) {
-    console.error("Get time logs error:", err);
+    console.error("❌ Get time logs error:", err);
     res.status(500).json({ message: err.message });
   }
 };

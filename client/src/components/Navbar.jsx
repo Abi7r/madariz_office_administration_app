@@ -32,6 +32,13 @@ export default function Navbar() {
           >
             My Work
           </Link>
+          <Link
+            to="/queries"
+            className="block py-2 px-4 hover:bg-blue-700 rounded hover:text-blue-200"
+            onClick={() => setIsOpen(false)}
+          >
+            My Queries
+          </Link>
         </>
       )}
 

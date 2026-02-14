@@ -8,7 +8,7 @@ import { AuthProvider } from "./context/AuthContext";
 import Layout from "./components/Layout";
 import PrivateRoute from "./components/PrivateRoute";
 
-// Pages
+import EmployeeQueries from "./pages/Employee/EmployeeQueries";
 import Login from "./pages/login";
 import EmployeeDashboard from "./pages/Employee/EmployeeDashboard";
 import TaskWorkScreen from "./pages/Employee/TaskWorkScreen";
@@ -20,14 +20,29 @@ import DayEndReview from "./pages/Hr/DayEndReview";
 import Billing from "./pages/Hr/Billing";
 import Payments from "./pages/Hr/Payments";
 import Ledger from "./pages/Hr/Ledger";
-
+import PaymentPage from "./pages/public/paymentPage";
+import PaymentSuccess from "./pages/public/paymentSuccess";
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
-
+          <Route path="/pay/:billingId" element={<PaymentPage />} />
+          <Route path="/payment/success" element={<PaymentSuccess />} />
+          <Route
+            path="/payment/cancel"
+            element={
+              <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                    Payment Cancelled
+                  </h2>
+                  <p className="text-gray-600">Your payment was cancelled.</p>
+                </div>
+              </div>
+            }
+          />
           {/* Employee Routes */}
           <Route
             path="/employee/dashboard"
@@ -45,6 +60,16 @@ function App() {
               <PrivateRoute role="EMPLOYEE">
                 <Layout>
                   <TaskWorkScreen />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/queries"
+            element={
+              <PrivateRoute role="EMPLOYEE">
+                <Layout>
+                  <EmployeeQueries />
                 </Layout>
               </PrivateRoute>
             }

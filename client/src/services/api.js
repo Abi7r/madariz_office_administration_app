@@ -41,6 +41,7 @@ export const startWork = (data) => api.post("/timelogs/start", data);
 export const stopWork = (data) => api.post("/timelogs/stop", data);
 export const getActiveTimer = () => api.get("/timelogs/active");
 export const getTodayLogs = () => api.get("/timelogs/today");
+export const getTimeLogs = (params) => api.get("/timelogs", { params }); // ← THIS LINE IS CRITICAL
 export const getPendingLogs = (params) =>
   api.get("/timelogs/pending", { params });
 export const approveTimeLog = (id, data) =>
@@ -74,7 +75,7 @@ export const getAllOutstanding = () => api.get("/ledger/outstanding");
 // Dashboard
 export const getDashboard = () => api.get("/dashboard");
 
-//users
+// Users
 export const getEmployees = () => api.get("/users/employees");
 
 export default api;

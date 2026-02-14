@@ -1,39 +1,59 @@
-const Payment = require("../models/payment");
 const Billing = require("../models/billing");
+const Payment = require("../models/payment");
+const Client = require("../models/client");
 const LedgerEntry = require("../models/ledgerEntry");
-const { validationResult } = require("express-validator");
-const { updateBillingPayment } = require("./billingController");
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? require("stripe")(process.env.STRIPE_SECRET_KEY)
-  : null;
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+// Helper function to update billing payment
+async function updateBillingPayment(billingId, paymentAmount) {
+  try {
+    const billing = await Billing.findById(billingId);
+    if (!billing) return;
+
+    billing.paidAmount += paymentAmount;
+    billing.outstandingAmount = billing.amount - billing.paidAmount;
+
+    if (billing.paidAmount >= billing.amount) {
+      billing.isPaid = true;
+    }
+
+    await billing.save();
+    return billing;
+  } catch (err) {
+    console.error("Error updating billing payment:", err);
+  }
+}
+
+// Get All Payments (HR)
+exports.getPayments = async (req, res) => {
+  try {
+    const payments = await Payment.find()
+      .populate("client billing")
+      .sort({ date: -1 });
+    res.json(payments);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
 // Create Manual Payment (HR)
 exports.createManualPayment = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
     const { clientId, billingId, amount, mode, reference } = req.body;
 
-    // Create payment record
     const payment = await Payment.create({
       client: clientId,
-      billing: billingId || null,
-      amount,
+      billing: billingId || undefined,
+      amount: parseFloat(amount),
       mode,
       reference,
       status: "COMPLETED",
-      createdBy: req.user.id,
     });
 
-    // Update billing if provided
     if (billingId) {
-      await updateBillingPayment(billingId, amount);
+      await updateBillingPayment(billingId, parseFloat(amount));
     }
 
-    // Create ledger entry (CREDIT)
     const lastEntry = await LedgerEntry.findOne({ client: clientId }).sort({
       date: -1,
     });
@@ -45,161 +65,230 @@ exports.createManualPayment = async (req, res) => {
       description: `Payment received - ${mode} ${reference ? `(${reference})` : ""}`,
       type: "CREDIT",
       debit: 0,
-      credit: amount,
-      balance: previousBalance - amount,
+      credit: parseFloat(amount),
+      balance: previousBalance - parseFloat(amount),
       reference: payment._id,
       referenceModel: "Payment",
     });
 
-    await payment.populate("client billing createdBy");
-
-    res.status(201).json({
-      message: "Payment recorded successfully",
-      payment,
-    });
+    await payment.populate("client billing");
+    res.status(201).json(payment);
   } catch (err) {
+    console.error("Manual payment error:", err);
     res.status(500).json({ message: err.message });
   }
 };
 
-// Create Stripe Payment Intent (for online payment)
-exports.createStripePayment = async (req, res) => {
-  try {
-    const { billingId, amount } = req.body;
+// Create Stripe Checkout Session (NEW - for shareable links)
+exports.createCheckoutSession = async (req, res) => {
+  console.log(" Request body:", req.body);
+  console.log(" User:", req.user?._id);
 
-    const billing = await Billing.findById(billingId).populate("client");
+  try {
+    const { billingId } = req.body;
+    console.log(" Billing ID:", billingId);
+
+    if (!billingId) {
+      console.log(" No billing ID provided");
+      return res.status(400).json({ message: "billingId is required" });
+    }
+
+    console.log(" Finding billing...");
+    const billing = await Billing.findById(billingId)
+      .populate("client")
+      .populate("task");
+
+    console.log(" Billing found:", {
+      id: billing?._id,
+      invoiceNumber: billing?.invoiceNumber,
+      hasClient: !!billing?.client,
+      clientId: billing?.client?._id,
+      isPaid: billing?.isPaid,
+    });
+
     if (!billing) {
+      console.log(" Billing not found");
       return res.status(404).json({ message: "Billing not found" });
     }
 
-    // Create Stripe payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency: "inr", // Change as needed
+    if (!billing.client) {
+      console.log(" Billing has no client");
+      return res.status(400).json({
+        message:
+          "Invoice has no associated client. The client may have been deleted.",
+      });
+    }
+
+    if (billing.isPaid) {
+      console.log(" Billing already paid");
+      return res.status(400).json({ message: "Invoice already paid" });
+    }
+
+    const amountInPaise = Math.round(billing.outstandingAmount * 100);
+    console.log(" Amount in paise:", amountInPaise);
+
+    if (!process.env.CLIENT_URL) {
+      console.log(" CLIENT_URL not set");
+      return res.status(500).json({ message: "Server configuration error" });
+    }
+
+    console.log("🔗 Creating Stripe session...");
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "inr",
+            product_data: {
+              name: `Invoice ${billing.invoiceNumber}`,
+              description: `${billing.task?.title || "Services"} - ${billing.client.name}`,
+            },
+            unit_amount: amountInPaise,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&billing_id=${billing._id}`,
+      cancel_url: `${process.env.CLIENT_URL}/payment/cancel?billing_id=${billing._id}`,
       metadata: {
         billingId: billing._id.toString(),
         clientId: billing.client._id.toString(),
-        invoiceNumber: billing.invoiceNumber,
       },
+      customer_email: billing.client.email || undefined,
     });
 
-    // Create pending payment record
-    const payment = await Payment.create({
-      client: billing.client._id,
-      billing: billingId,
-      amount,
-      mode: "ONLINE",
-      status: "PENDING",
-      transactionId: paymentIntent.id,
-      provider: "stripe",
-      rawResponse: paymentIntent,
-    });
+    console.log("✅ Stripe session created:", session.id);
+    console.log("🔗 Payment URL:", session.url);
 
     res.json({
-      message: "Payment intent created",
-      clientSecret: paymentIntent.client_secret,
-      payment,
+      sessionId: session.id,
+      url: session.url,
+    });
+  } catch (err) {
+    console.error("Error type:", err.constructor.name);
+    console.error("Error message:", err.message);
+    console.error("Error stack:", err.stack);
+    res.status(500).json({
+      message: "Failed to create checkout session",
+      error: err.message,
+    });
+  }
+};
+// Get public billing info (no auth)
+exports.getPublicBillingInfo = async (req, res) => {
+  try {
+    const { billingId } = req.params;
+
+    const billing = await Billing.findById(billingId)
+      .populate("client", "name email")
+      .populate("task", "title");
+
+    if (!billing) {
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    res.json({
+      invoiceNumber: billing.invoiceNumber,
+      client: billing.client?.name || "Unknown",
+      task: billing.task?.title || "Services",
+      amount: billing.amount,
+      outstandingAmount: billing.outstandingAmount,
+      hours: billing.hours,
+      ratePerHour: billing.ratePerHour,
+      isPaid: billing.isPaid,
+      date: billing.date,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// Stripe Webhook Handler
-exports.stripeWebhook = async (req, res) => {
+// Verify checkout session (no auth)
+exports.verifyCheckoutSession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    res.json({
+      status: session.payment_status,
+      billingId: session.metadata.billingId,
+      amount: session.amount_total / 100,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Handle Stripe Webhook
+exports.handleStripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET,
+    );
   } catch (err) {
-    console.log(`Webhook signature verification failed:`, err.message);
+    console.error("Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // Handle the event
-  if (event.type === "payment_intent.succeeded") {
-    const paymentIntent = event.data.object;
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
 
-    // Find the payment record
-    const payment = await Payment.findOne({
-      transactionId: paymentIntent.id,
-    });
+    if (session.payment_status === "paid") {
+      const billingId = session.metadata.billingId;
+      const clientId = session.metadata.clientId;
+      const amount = session.amount_total / 100;
 
-    if (payment) {
-      payment.status = "COMPLETED";
-      payment.rawResponse = paymentIntent;
-      await payment.save();
+      // Create payment record
+      const payment = await Payment.create({
+        client: clientId,
+        billing: billingId,
+        amount: amount,
+        mode: "ONLINE",
+        status: "COMPLETED",
+        transactionId: session.payment_intent,
+        provider: "stripe",
+        rawResponse: session,
+      });
 
       // Update billing
-      if (payment.billing) {
-        await updateBillingPayment(payment.billing, payment.amount);
-      }
+      await updateBillingPayment(billingId, amount);
 
       // Create ledger entry
-      const lastEntry = await LedgerEntry.findOne({
-        client: payment.client,
-      }).sort({ date: -1 });
-
+      const lastEntry = await LedgerEntry.findOne({ client: clientId }).sort({
+        date: -1,
+      });
       const previousBalance = lastEntry ? lastEntry.balance : 0;
 
       await LedgerEntry.create({
-        client: payment.client,
+        client: clientId,
         date: new Date(),
-        description: `Online payment received - Stripe (${paymentIntent.id})`,
+        description: `Online payment - Stripe (${session.payment_intent})`,
         type: "CREDIT",
         debit: 0,
-        credit: payment.amount,
-        balance: previousBalance - payment.amount,
+        credit: amount,
+        balance: previousBalance - amount,
         reference: payment._id,
         referenceModel: "Payment",
       });
-    }
-  } else if (event.type === "payment_intent.payment_failed") {
-    const paymentIntent = event.data.object;
 
-    const payment = await Payment.findOne({
-      transactionId: paymentIntent.id,
-    });
-
-    if (payment) {
-      payment.status = "FAILED";
-      payment.rawResponse = paymentIntent;
-      await payment.save();
+      console.log("✅ Payment processed via webhook:", session.payment_intent);
     }
   }
 
   res.json({ received: true });
 };
-
-// Get All Payments
-exports.getPayments = async (req, res) => {
-  try {
-    const { client, billing, status, mode } = req.query;
-    const filter = {};
-
-    if (client) filter.client = client;
-    if (billing) filter.billing = billing;
-    if (status) filter.status = status;
-    if (mode) filter.mode = mode;
-
-    const payments = await Payment.find(filter)
-      .populate("client billing createdBy")
-      .sort({ createdAt: -1 });
-
-    res.json(payments);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// Get Single Payment
 exports.getPaymentById = async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.id).populate(
-      "client billing createdBy",
+      "client billing",
     );
 
     if (!payment) {
@@ -208,6 +297,30 @@ exports.getPaymentById = async (req, res) => {
 
     res.json(payment);
   } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Add this function if it doesn't exist
+exports.createStripePayment = async (req, res) => {
+  try {
+    const { billingId, amount } = req.body;
+
+    const amountInPaise = Math.round(amount * 100);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInPaise,
+      currency: "inr",
+      metadata: {
+        billingId: billingId,
+      },
+    });
+
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+    });
+  } catch (err) {
+    console.error("Stripe payment error:", err);
     res.status(500).json({ message: err.message });
   }
 };
