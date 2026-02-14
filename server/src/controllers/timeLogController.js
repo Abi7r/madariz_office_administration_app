@@ -3,6 +3,38 @@ const Subtask = require("../models/subtask");
 const Query = require("../models/query");
 const LedgerEntry = require("../models/ledgerEntry");
 const { validationResult } = require("express-validator");
+exports.dismissRejectedLog = async (req, res) => {
+  try {
+    const timeLog = await TimeLog.findById(req.params.id);
+
+    if (!timeLog) {
+      return res.status(404).json({ message: "Time log not found" });
+    }
+
+    // Verify it belongs to the employee
+    if (timeLog.employee.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    // Verify it's rejected
+    if (timeLog.status !== "REJECTED") {
+      return res
+        .status(400)
+        .json({ message: "Only rejected logs can be dismissed" });
+    }
+
+    timeLog.dismissedByEmployee = true;
+    timeLog.dismissedAt = new Date();
+    await timeLog.save();
+
+    res.json({
+      message: "Rejected log dismissed",
+      timeLog,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 exports.approveTimeLog = async (req, res) => {
   try {
     const { editedHours } = req.body;

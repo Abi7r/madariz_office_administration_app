@@ -124,24 +124,34 @@ export default function Payments() {
         ? "bg-yellow-100 text-yellow-800"
         : "bg-red-100 text-red-800";
   };
+  const handleDownloadReceipt = async (paymentId) => {
+    try {
+      const response = await api.get(`/payments/${paymentId}/receipt`, {
+        responseType: "blob",
+      });
 
-  // Filter out billings with no client (orphaned records)
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `receipt-${paymentId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Receipt download error:", error);
+      alert("Failed to download receipt");
+    }
+  };
+
+  // Filter out billings with no client
   const validOutstandingBillings = billings.filter(
     (b) => !b.isPaid && b.outstandingAmount > 0 && b.client,
   );
 
   return (
     <div className="space-y-6">
-      {/* <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">Payments</h1>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-        >
-          + Record Manual Payment
-        </button>
-      </div> */}
-
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
@@ -440,6 +450,15 @@ export default function Payments() {
                     </td>
                     <td className="px-6 py-4 text-xs text-gray-600 font-mono">
                       {payment.transactionId || payment.reference || "-"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => handleDownloadReceipt(payment._id)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                        title="Download Receipt"
+                      >
+                        📄 Receipt
+                      </button>
                     </td>
                   </tr>
                 ))

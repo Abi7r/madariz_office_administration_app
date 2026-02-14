@@ -41,31 +41,5 @@ router.get("/", (req, res) => {
     return dashboardController.getHRDashboard(req, res);
   }
 });
-/**
- * @swagger
- * /api/dashboard/employee:
- *   get:
- *     summary: Employee dashboard stats
- *     tags: [Dashboard]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Employee dashboard data
- */
-router.get("/employee", dashboardController.getEmployeeDashboard);
-/**
- * @swagger
- * /api/dashboard/hr:
- *   get:
- *     summary: HR dashboard stats
- *     tags: [Dashboard]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: HR dashboard data
- */
-router.get("/hr", dashboardController.getHRDashboard);
 
 module.exports = router;

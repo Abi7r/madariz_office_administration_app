@@ -219,56 +219,14 @@ router.post(
   paymentController.createManualPayment,
 );
 
-/**
- * @swagger
- * /payments/stripe/create:
- *   post:
- *     summary: Create Stripe payment intent (embedded form)
- *     description: Create a Stripe payment intent for embedded payment form (HR only)
- *     tags: [Payments]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - billingId
- *               - amount
- *             properties:
- *               billingId:
- *                 type: string
- *                 example: "507f1f77bcf86cd799439011"
- *               amount:
- *                 type: number
- *                 example: 2500
- *     responses:
- *       200:
- *         description: Payment intent created
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 clientSecret:
- *                   type: string
- *       400:
- *         description: Validation error
- *       401:
- *         description: Not authenticated
- *       403:
- *         description: Not authorized (HR only)
- */
-router.post(
-  "/stripe/create",
-  [
-    body("billingId").notEmpty().withMessage("Billing ID is required"),
-    body("amount").isNumeric().withMessage("Amount must be a number"),
-  ],
-  paymentController.createStripePayment,
-);
+// router.post(
+//   "/stripe/create",
+//   [
+//     body("billingId").notEmpty().withMessage("Billing ID is required"),
+//     body("amount").isNumeric().withMessage("Amount must be a number"),
+//   ],
+//   paymentController.createStripePayment,
+// );
 
 /**
  * @swagger
@@ -321,5 +279,33 @@ router.post(
   [body("billingId").notEmpty().withMessage("Billing ID is required")],
   paymentController.createCheckoutSession,
 );
+/**
+ * @swagger
+ * /payments/{id}/receipt:
+ *   get:
+ *     summary: Download payment receipt (PDF)
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: PDF receipt file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+router.get("/:id/receipt", protect, paymentController.downloadReceipt);
+
+// Or use query parameter approach:
+// GET /api/payments/:id?format=pdf
+router.get("/:id", paymentController.getPaymentById);
 
 module.exports = router;

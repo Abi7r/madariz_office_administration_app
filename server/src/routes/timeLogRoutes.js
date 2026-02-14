@@ -216,5 +216,30 @@ router.post(
  *         description: List of timelogs
  */
 router.get("/", timeLogController.getTimeLogs);
+/**
+ * @swagger
+ * /api/timelogs/{id}/dismiss:
+ *   post:
+ *     summary: Dismiss a rejected time log (Employee only)
+ *     tags: [TimeLogs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Rejected time log dismissed
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Only rejected logs can be dismissed
+ *       404:
+ *         description: Time log not found
+ */
+router.post("/:id/dismiss", protect, timeLogController.dismissRejectedLog);
 
 module.exports = router;

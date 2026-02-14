@@ -12,9 +12,11 @@ export default function Tasks() {
   const [tasks, setTasks] = useState([]);
   const [clients, setClients] = useState([]);
   const [users, setUsers] = useState([]);
+  const [subtasks, setSubtasks] = useState([]); // Add this
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showSubtaskForm, setShowSubtaskForm] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [expandedTasks, setExpandedTasks] = useState(new Set()); // Add this to track expanded tasks
   const [taskFormData, setTaskFormData] = useState({
     title: "",
     description: "",
@@ -33,14 +35,17 @@ export default function Tasks() {
 
   const loadData = async () => {
     try {
-      const [tasksRes, clientsRes, employeesRes] = await Promise.all([
-        getTasks(),
-        getClients(),
-        getEmployees(),
-      ]);
+      const [tasksRes, clientsRes, employeesRes, subtasksRes] =
+        await Promise.all([
+          getTasks(),
+          getClients(),
+          getEmployees(),
+          getSubtasks(), // Add this
+        ]);
       setTasks(tasksRes.data);
       setClients(clientsRes.data);
       setUsers(employeesRes.data);
+      setSubtasks(subtasksRes.data); // Add this
     } catch (error) {
       console.error("Error loading data:", error);
     }
@@ -80,6 +85,40 @@ export default function Tasks() {
     }
   };
 
+  // Toggle task expansion
+  const toggleTask = (taskId) => {
+    const newExpanded = new Set(expandedTasks);
+    if (newExpanded.has(taskId)) {
+      newExpanded.delete(taskId);
+    } else {
+      newExpanded.add(taskId);
+    }
+    setExpandedTasks(newExpanded);
+  };
+
+  // Get subtasks for a specific task
+  const getTaskSubtasks = (taskId) => {
+    return subtasks.filter(
+      (subtask) => subtask.task?._id === taskId || subtask.task === taskId,
+    );
+  };
+
+  // Get status color
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "PENDING":
+        return "bg-yellow-100 text-yellow-800";
+      case "IN_PROGRESS":
+        return "bg-blue-100 text-blue-800";
+      case "ON_HOLD":
+        return "bg-orange-100 text-orange-800";
+      case "COMPLETED":
+        return "bg-green-100 text-green-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -94,41 +133,130 @@ export default function Tasks() {
 
       {/* Tasks List */}
       <div className="space-y-4">
-        {tasks.map((task) => (
-          <div key={task._id} className="bg-white rounded-lg shadow">
-            <div className="p-6">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-gray-800">
-                    {task.title}
-                  </h3>
-                  <p className="text-gray-600 mt-1">{task.description}</p>
-                  <div className="flex gap-4 mt-3">
-                    <span className="text-sm text-gray-600">
-                      Client: {task.client?.name}
-                    </span>
-                    <span className="text-sm text-gray-600">
-                      Status: {task.status}
-                    </span>
-                    <span className="text-sm text-blue-600">
-                      Logged: {task.totalLoggedHours || 0}h / Est:{" "}
-                      {task.totalEstimatedHours || 0}h
-                    </span>
+        {tasks.map((task) => {
+          const taskSubtasks = getTaskSubtasks(task._id);
+          const isExpanded = expandedTasks.has(task._id);
+
+          return (
+            <div key={task._id} className="bg-white rounded-lg shadow">
+              <div className="p-6">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xl font-semibold text-gray-800">
+                        {task.title}
+                      </h3>
+                      {taskSubtasks.length > 0 && (
+                        <button
+                          onClick={() => toggleTask(task._id)}
+                          className="text-blue-600 hover:text-blue-800 transition"
+                        >
+                          <svg
+                            className={`w-5 h-5 transition-transform ${
+                              isExpanded ? "rotate-180" : ""
+                            }`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-gray-600 mt-1">{task.description}</p>
+                    <div className="flex gap-4 mt-3">
+                      <span className="text-sm text-gray-600">
+                        Client: {task.client?.name}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        Status: {task.status}
+                      </span>
+                      <span className="text-sm text-blue-600">
+                        Logged: {task.totalLoggedHours || 0}h / Est:{" "}
+                        {task.totalEstimatedHours || 0}h
+                      </span>
+                      <span className="text-sm text-purple-600">
+                        📋 {taskSubtasks.length} subtask
+                        {taskSubtasks.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setShowSubtaskForm(true);
+                    }}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    + Add Subtask
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setSelectedTask(task);
-                    setShowSubtaskForm(true);
-                  }}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                >
-                  + Add Subtask
-                </button>
+
+                {/* Subtasks Section */}
+                {isExpanded && taskSubtasks.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <h4 className="font-semibold text-gray-700 mb-3">
+                      Subtasks:
+                    </h4>
+                    <div className="space-y-2">
+                      {taskSubtasks.map((subtask) => (
+                        <div
+                          key={subtask._id}
+                          className="bg-gray-50 rounded-lg p-4 border border-gray-200"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h5 className="font-medium text-gray-800">
+                                  {subtask.title}
+                                </h5>
+                                <span
+                                  className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(
+                                    subtask.status,
+                                  )}`}
+                                >
+                                  {subtask.status}
+                                </span>
+                              </div>
+                              {subtask.description && (
+                                <p className="text-sm text-gray-600 mb-2">
+                                  {subtask.description}
+                                </p>
+                              )}
+                              <div className="flex gap-4 text-xs text-gray-500">
+                                <span>
+                                  👤 {subtask.assignedTo?.name || "Unassigned"}
+                                </span>
+                                <span>
+                                  ⏱️ {subtask.loggedHours || 0}h /{" "}
+                                  {subtask.estimatedHours}h
+                                </span>
+                                {subtask.deadline && (
+                                  <span>
+                                    📅 Due:{" "}
+                                    {new Date(
+                                      subtask.deadline,
+                                    ).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {tasks.length === 0 && (
           <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
             No tasks yet. Create your first task!
@@ -255,7 +383,7 @@ export default function Tasks() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Assign To (Employee ID) *
+                  Assign To (Employee) *
                 </label>
                 <select
                   required
@@ -275,9 +403,6 @@ export default function Tasks() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Tip: Login as employee and check user ID from dashboard
-                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

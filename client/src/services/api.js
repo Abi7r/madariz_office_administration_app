@@ -37,11 +37,12 @@ export const createSubtask = (data) => api.post("/subtasks", data);
 export const updateSubtask = (id, data) => api.put(`/subtasks/${id}`, data);
 
 // Time Logs
+export const dismissRejectedLog = (id) => api.post(`/timelogs/${id}/dismiss`);
 export const startWork = (data) => api.post("/timelogs/start", data);
 export const stopWork = (data) => api.post("/timelogs/stop", data);
 export const getActiveTimer = () => api.get("/timelogs/active");
 export const getTodayLogs = () => api.get("/timelogs/today");
-export const getTimeLogs = (params) => api.get("/timelogs", { params }); // ← THIS LINE IS CRITICAL
+export const getTimeLogs = (params) => api.get("/timelogs", { params });
 export const getPendingLogs = (params) =>
   api.get("/timelogs/pending", { params });
 export const approveTimeLog = (id, data) =>

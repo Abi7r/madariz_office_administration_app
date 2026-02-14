@@ -108,6 +108,7 @@ const timeLogSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    dismissedAt: Date,
   },
   { timestamps: true },
 );

@@ -3,7 +3,9 @@ const Payment = require("../models/payment");
 const Client = require("../models/client");
 const LedgerEntry = require("../models/ledgerEntry");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-
+const { generateReceipt } = require("../utils/receiptGenerator");
+const path = require("path");
+const fs = require("fs");
 // Helper function to update billing payment
 async function updateBillingPayment(billingId, paymentAmount) {
   try {
@@ -79,7 +81,7 @@ exports.createManualPayment = async (req, res) => {
   }
 };
 
-// Create Stripe Checkout Session (NEW - for shareable links)
+// Create Stripe Checkout Session  for shareable links
 exports.createCheckoutSession = async (req, res) => {
   console.log(" Request body:", req.body);
   console.log(" User:", req.user?._id);
@@ -158,8 +160,8 @@ exports.createCheckoutSession = async (req, res) => {
       customer_email: billing.client.email || undefined,
     });
 
-    console.log("✅ Stripe session created:", session.id);
-    console.log("🔗 Payment URL:", session.url);
+    console.log(" Stripe session created:", session.id);
+    console.log("Payment URL:", session.url);
 
     res.json({
       sessionId: session.id,
@@ -279,7 +281,7 @@ exports.handleStripeWebhook = async (req, res) => {
         referenceModel: "Payment",
       });
 
-      console.log("✅ Payment processed via webhook:", session.payment_intent);
+      console.log("Payment processed via webhook:", session.payment_intent);
     }
   }
 
@@ -322,5 +324,78 @@ exports.createStripePayment = async (req, res) => {
   } catch (err) {
     console.error("Stripe payment error:", err);
     res.status(500).json({ message: err.message });
+  }
+};
+
+exports.getPaymentById = async (req, res) => {
+  try {
+    const payment = await Payment.findById(req.params.id)
+      .populate("client")
+      .populate({
+        path: "billing",
+        populate: { path: "task" },
+      });
+
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
+
+    // If requesting PDF receipt
+    if (req.query.format === "pdf") {
+      const receiptPath = await generateReceipt(
+        payment,
+        payment.billing,
+        payment.client,
+      );
+
+      res.download(receiptPath, `receipt-${payment._id}.pdf`, (err) => {
+        // Delete temp file after download
+        if (fs.existsSync(receiptPath)) {
+          fs.unlinkSync(receiptPath);
+        }
+
+        if (err) {
+          console.error("Receipt download error:", err);
+        }
+      });
+    } else {
+      // Return JSON data
+      res.json(payment);
+    }
+  } catch (err) {
+    console.error("Get payment error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Or create dedicated receipt endpoint (cleaner)
+exports.downloadReceipt = async (req, res) => {
+  try {
+    const payment = await Payment.findById(req.params.id)
+      .populate("client")
+      .populate({
+        path: "billing",
+        populate: { path: "task" },
+      });
+
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
+
+    const receiptPath = await generateReceipt(
+      payment,
+      payment.billing,
+      payment.client,
+    );
+
+    res.download(receiptPath, `receipt-${payment._id}.pdf`, (err) => {
+      // Cleanup
+      if (fs.existsSync(receiptPath)) {
+        fs.unlinkSync(receiptPath);
+      }
+    });
+  } catch (err) {
+    console.error("Receipt generation error:", err);
+    res.status(500).json({ message: "Failed to generate receipt" });
   }
 };

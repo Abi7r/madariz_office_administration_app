@@ -26,7 +26,8 @@ export default function EmployeeQueries() {
       case "open":
         return queries.filter((q) => q.status === "OPEN");
       case "replied":
-        return queries.filter((q) => q.status === "REPLIED");
+        // Show all queries that have received a reply (regardless of CLOSED status)
+        return queries.filter((q) => q.reply && q.reply.trim() !== "");
       case "closed":
         return queries.filter((q) => q.status === "CLOSED");
       default:
@@ -67,6 +68,13 @@ export default function EmployeeQueries() {
 
   const filteredQueries = getFilteredQueries();
 
+  // Count queries by status and reply
+  const openCount = queries.filter((q) => q.status === "OPEN").length;
+  const repliedCount = queries.filter(
+    (q) => q.reply && q.reply.trim() !== "",
+  ).length; // Count all with replies
+  const closedCount = queries.filter((q) => q.status === "CLOSED").length;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -81,21 +89,15 @@ export default function EmployeeQueries() {
         </div>
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-400">
           <p className="text-sm text-gray-600">Open</p>
-          <p className="text-2xl font-bold text-yellow-600">
-            {queries.filter((q) => q.status === "OPEN").length}
-          </p>
+          <p className="text-2xl font-bold text-yellow-600">{openCount}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-400">
-          <p className="text-sm text-gray-600">Replied</p>
-          <p className="text-2xl font-bold text-blue-600">
-            {queries.filter((q) => q.status === "REPLIED").length}
-          </p>
+          <p className="text-sm text-gray-600">With Replies</p>
+          <p className="text-2xl font-bold text-blue-600">{repliedCount}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-400">
           <p className="text-sm text-gray-600">Closed</p>
-          <p className="text-2xl font-bold text-green-600">
-            {queries.filter((q) => q.status === "CLOSED").length}
-          </p>
+          <p className="text-2xl font-bold text-green-600">{closedCount}</p>
         </div>
       </div>
 
@@ -120,7 +122,7 @@ export default function EmployeeQueries() {
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            Open ({queries.filter((q) => q.status === "OPEN").length})
+            Open ({openCount})
           </button>
           <button
             onClick={() => setFilter("replied")}
@@ -130,7 +132,7 @@ export default function EmployeeQueries() {
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            Replied ({queries.filter((q) => q.status === "REPLIED").length})
+            With Replies ({repliedCount})
           </button>
           <button
             onClick={() => setFilter("closed")}
@@ -140,7 +142,7 @@ export default function EmployeeQueries() {
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            Closed ({queries.filter((q) => q.status === "CLOSED").length})
+            Closed ({closedCount})
           </button>
         </div>
       </div>
@@ -156,7 +158,9 @@ export default function EmployeeQueries() {
             <p className="text-gray-500 mt-2">
               {filter === "all"
                 ? "You haven't raised any queries yet."
-                : `No ${filter} queries.`}
+                : filter === "replied"
+                  ? "No queries with replies yet."
+                  : `No ${filter.toLowerCase()} queries.`}
             </p>
           </div>
         ) : (
@@ -201,7 +205,8 @@ export default function EmployeeQueries() {
                       <span>
                         Raised: {new Date(query.createdAt).toLocaleDateString()}
                       </span>
-                      {query.replies && query.replies.length > 0 && (
+                      {/* Show reply indicator if query has a reply */}
+                      {query.reply && (
                         <span className="flex items-center gap-1 text-blue-600">
                           <svg
                             className="w-4 h-4"
@@ -214,8 +219,7 @@ export default function EmployeeQueries() {
                               clipRule="evenodd"
                             />
                           </svg>
-                          {query.replies.length}{" "}
-                          {query.replies.length === 1 ? "reply" : "replies"}
+                          HR replied
                         </span>
                       )}
                       {query.status === "CLOSED" && query.closedAt && (
@@ -320,8 +324,8 @@ export default function EmployeeQueries() {
               </div>
             </div>
 
-            {/* Replies */}
-            {selectedQuery.replies && selectedQuery.replies.length > 0 ? (
+            {/* Reply Section - Check if reply exists */}
+            {selectedQuery.reply ? (
               <div className="space-y-4">
                 <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                   <svg
@@ -335,31 +339,28 @@ export default function EmployeeQueries() {
                       clipRule="evenodd"
                     />
                   </svg>
-                  HR Replies ({selectedQuery.replies.length})
+                  HR Reply
                 </h3>
-                {selectedQuery.replies.map((reply, index) => (
-                  <div
-                    key={index}
-                    className="bg-green-50 border-l-4 border-green-500 rounded p-4"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="bg-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 font-semibold">
-                        HR
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-gray-800">
-                            {reply.repliedBy?.name || "HR"}
-                          </span>
+                <div className="bg-green-50 border-l-4 border-green-500 rounded p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 font-semibold">
+                      HR
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-gray-800">
+                          {selectedQuery.repliedBy?.name || "HR"}
+                        </span>
+                        {selectedQuery.repliedAt && (
                           <span className="text-xs text-gray-500">
-                            {new Date(reply.repliedAt).toLocaleString()}
+                            {new Date(selectedQuery.repliedAt).toLocaleString()}
                           </span>
-                        </div>
-                        <p className="text-gray-700">{reply.message}</p>
+                        )}
                       </div>
+                      <p className="text-gray-700">{selectedQuery.reply}</p>
                     </div>
                   </div>
-                ))}
+                </div>
               </div>
             ) : (
               <div className="bg-yellow-50 border border-yellow-200 rounded p-4 text-center">
@@ -370,7 +371,7 @@ export default function EmployeeQueries() {
             )}
 
             {/* Closed Info */}
-            {selectedQuery.status === "CLOSED" && (
+            {selectedQuery.status === "CLOSED" && selectedQuery.closedAt && (
               <div className="mt-4 bg-gray-50 border border-gray-200 rounded p-4">
                 <p className="text-sm text-gray-600">
                   ✅ This query was closed on{" "}
