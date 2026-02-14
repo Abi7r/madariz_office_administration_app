@@ -3,7 +3,35 @@ const Subtask = require("../models/subtask");
 const Query = require("../models/query");
 const LedgerEntry = require("../models/ledgerEntry");
 const { validationResult } = require("express-validator");
+exports.approveTimeLog = async (req, res) => {
+  try {
+    const { editedHours } = req.body;
 
+    const timeLog = await TimeLog.findById(req.params.id);
+    if (!timeLog) {
+      return res.status(404).json({ message: "Time log not found" });
+    }
+
+    timeLog.status = "APPROVED";
+    timeLog.approvedBy = req.user.id;
+    timeLog.approvedAt = new Date();
+
+    if (editedHours !== undefined) {
+      timeLog.editedHours = editedHours;
+    }
+
+    await timeLog.save();
+    await timeLog.populate("employee subtask approvedBy");
+
+    res.json({
+      message: "Time log approved",
+      timeLog,
+    });
+  } catch (err) {
+    console.error("Approve error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
 // Start Work Timer
 exports.startWork = async (req, res) => {
   try {
@@ -192,11 +220,22 @@ exports.getTimeLogs = async (req, res) => {
     }
 
     const logs = await TimeLog.find(filter)
-      .populate("employee subtask approvedBy")
+      .populate("employee")
+      .populate({
+        path: "subtask",
+        populate: {
+          path: "task",
+          populate: {
+            path: "client",
+          },
+        },
+      })
+      .populate("approvedBy")
       .sort({ date: -1, startTime: -1 });
 
     res.json(logs);
   } catch (err) {
+    console.error("Get time logs error:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -311,64 +350,64 @@ exports.getPendingLogs = async (req, res) => {
 //     res.status(500).json({ message: err.message });
 //   }
 // };
-exports.approveTimeLog = async (req, res) => {
-  try {
-    const { editedHours } = req.body;
+// exports.approveTimeLog = async (req, res) => {
+//   try {
+//     const { editedHours } = req.body;
 
-    const timeLog = await TimeLog.findById(req.params.id).populate({
-      path: "subtask",
-      populate: {
-        path: "task",
-        populate: { path: "client" },
-      },
-    });
+//     const timeLog = await TimeLog.findById(req.params.id).populate({
+//       path: "subtask",
+//       populate: {
+//         path: "task",
+//         populate: { path: "client" },
+//       },
+//     });
 
-    if (!timeLog) {
-      return res.status(404).json({ message: "Time log not found" });
-    }
+//     if (!timeLog) {
+//       return res.status(404).json({ message: "Time log not found" });
+//     }
 
-    const approvedHours =
-      editedHours !== undefined ? Number(editedHours) : timeLog.duration / 60;
+//     const approvedHours =
+//       editedHours !== undefined ? Number(editedHours) : timeLog.duration / 60;
 
-    const client = timeLog.subtask.task.client;
-    const rate = client.hourlyRate;
-    const amount = approvedHours * rate;
+//     const client = timeLog.subtask.task.client;
+//     const rate = client.hourlyRate;
+//     const amount = approvedHours * rate;
 
-    // Update time log
-    timeLog.status = "APPROVED";
-    timeLog.approvedBy = req.user.id;
-    timeLog.approvedAt = new Date();
-    timeLog.editedHours = editedHours !== undefined ? editedHours : undefined;
-    timeLog.billedAmount = amount;
+//     // Update time log
+//     timeLog.status = "APPROVED";
+//     timeLog.approvedBy = req.user.id;
+//     timeLog.approvedAt = new Date();
+//     timeLog.editedHours = editedHours !== undefined ? editedHours : undefined;
+//     timeLog.billedAmount = amount;
 
-    await timeLog.save();
+//     await timeLog.save();
 
-    // Get last balance
-    const lastEntry = await LedgerEntry.findOne({
-      client: client._id,
-    }).sort({ date: -1 });
+//     // Get last balance
+//     const lastEntry = await LedgerEntry.findOne({
+//       client: client._id,
+//     }).sort({ date: -1 });
 
-    const previousBalance = lastEntry ? lastEntry.balance : 0;
-    const newBalance = previousBalance + amount;
+//     const previousBalance = lastEntry ? lastEntry.balance : 0;
+//     const newBalance = previousBalance + amount;
 
-    await LedgerEntry.create({
-      client: client._id,
-      date: new Date(),
-      description: `Work on ${timeLog.subtask.title}`,
-      debit: amount,
-      credit: 0,
-      balance: newBalance,
-    });
+//     await LedgerEntry.create({
+//       client: client._id,
+//       date: new Date(),
+//       description: `Work on ${timeLog.subtask.title}`,
+//       debit: amount,
+//       credit: 0,
+//       balance: newBalance,
+//     });
 
-    res.json({
-      message: "Time log approved and billed",
-      billedAmount: amount,
-      timeLog,
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
+//     res.json({
+//       message: "Time log approved and billed",
+//       billedAmount: amount,
+//       timeLog,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: err.message });
+//   }
+// };
 
 // Reject Time Log (HR)
 exports.rejectTimeLog = async (req, res) => {

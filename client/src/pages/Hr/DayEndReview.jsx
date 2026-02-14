@@ -32,11 +32,25 @@ export default function DayEndReview() {
       if (hours && hours !== "") {
         data.editedHours = parseFloat(hours);
       }
-      await approveTimeLog(logId, data);
-      loadPendingLogs();
-      alert("Time log approved!");
+
+      console.log("Approving log:", logId, "with data:", data); // Debug
+
+      const response = await approveTimeLog(logId, data);
+      console.log("Approval response:", response); // Debug
+
+      setEditedHoursMap((prev) => {
+        const newMap = { ...prev };
+        delete newMap[logId];
+        return newMap;
+      });
+
+      await loadPendingLogs();
+      alert("Time log approved successfully!");
     } catch (error) {
-      alert("Failed to approve time log");
+      console.error("Approval error:", error.response || error); // Better debug
+      alert(
+        `Failed to approve time log: ${error.response?.data?.message || error.message}`,
+      );
     }
   };
 

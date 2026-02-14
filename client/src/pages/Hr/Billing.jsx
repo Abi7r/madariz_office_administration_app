@@ -19,6 +19,7 @@ export default function Billing() {
     taskId: "",
     ratePerHour: "",
   });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -40,30 +41,51 @@ export default function Billing() {
   };
 
   const loadApprovedLogs = async () => {
+    setLoading(true);
     try {
-      // Get approved logs that haven't been billed yet
+      console.log("Loading approved logs...");
+
+      // Get ALL approved logs with deep population
       const response = await api.get("/timelogs", {
         params: { status: "APPROVED" },
       });
 
-      // Filter logs that aren't already in any billing
+      console.log("All approved logs from API:", response.data);
+
+      // Filter out logs that are already billed
       const unbilledLogs = response.data.filter((log) => {
-        // Check if  already in a billing
+        if (!log.subtask || !log.subtask.task) {
+          console.warn("Log missing subtask or task:", log._id);
+          return false;
+        }
+
         const isAlreadyBilled = billings.some((billing) =>
-          billing.timeLogs?.some((billedLog) => billedLog._id === log._id),
+          billing.timeLogs?.some(
+            (billedLogId) => billedLogId.toString() === log._id.toString(),
+          ),
         );
+
         return !isAlreadyBilled;
       });
 
+      console.log("Unbilled logs:", unbilledLogs);
       setApprovedLogs(unbilledLogs);
     } catch (error) {
       console.error("Error loading approved logs:", error);
+      alert("Failed to load approved logs. Check console for details.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleShowForm = () => {
     setShowForm(true);
     setSelectedLogs([]);
+    setFormData({
+      clientId: "",
+      taskId: "",
+      ratePerHour: "",
+    });
     loadApprovedLogs();
   };
 
@@ -85,18 +107,46 @@ export default function Billing() {
   const getFilteredLogs = () => {
     let filtered = approvedLogs;
 
+    console.log("Filtering logs. Total approved logs:", filtered.length);
+    console.log("Selected clientId:", formData.clientId);
+    console.log("Selected taskId:", formData.taskId);
+
     if (formData.clientId) {
-      filtered = filtered.filter(
-        (log) => log.subtask?.task?.client?._id === formData.clientId,
-      );
+      filtered = filtered.filter((log) => {
+        const clientId =
+          log.subtask?.task?.client?._id || log.subtask?.task?.client;
+        const match = clientId?.toString() === formData.clientId;
+        if (!match) {
+          console.log(
+            "Log filtered out by client:",
+            log._id,
+            "has client:",
+            clientId,
+          );
+        }
+        return match;
+      });
+      console.log("After client filter:", filtered.length);
     }
 
     if (formData.taskId) {
-      filtered = filtered.filter(
-        (log) => log.subtask?.task?._id === formData.taskId,
-      );
+      filtered = filtered.filter((log) => {
+        const taskId = log.subtask?.task?._id || log.subtask?.task;
+        const match = taskId?.toString() === formData.taskId;
+        if (!match) {
+          console.log(
+            "Log filtered out by task:",
+            log._id,
+            "has task:",
+            taskId,
+          );
+        }
+        return match;
+      });
+      console.log("After task filter:", filtered.length);
     }
 
+    console.log("Final filtered logs:", filtered);
     return filtered;
   };
 
@@ -113,7 +163,6 @@ export default function Billing() {
 
     const totalHours = (totalMinutes / 60).toFixed(2);
 
-    // Get rate
     let rate = formData.ratePerHour;
     if (!rate && formData.clientId) {
       const client = clients.find((c) => c._id === formData.clientId);
@@ -149,6 +198,8 @@ export default function Billing() {
         data.ratePerHour = parseFloat(formData.ratePerHour);
       }
 
+      console.log("Creating billing with data:", data);
+
       await createBilling(data);
       setShowForm(false);
       setFormData({ clientId: "", taskId: "", ratePerHour: "" });
@@ -156,6 +207,7 @@ export default function Billing() {
       loadData();
       alert("Invoice created successfully!");
     } catch (error) {
+      console.error("Billing creation error:", error.response || error);
       alert(error.response?.data?.message || "Failed to create billing");
     }
   };
@@ -269,6 +321,12 @@ export default function Billing() {
           <div className="bg-white rounded-lg p-6 max-w-5xl w-full my-8">
             <h2 className="text-2xl font-semibold mb-6">Create Invoice</h2>
 
+            {loading && (
+              <div className="text-center py-4">
+                <div className="text-blue-600">Loading approved logs...</div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Client and Task Selection */}
               <div className="grid grid-cols-2 gap-4">
@@ -280,6 +338,7 @@ export default function Billing() {
                     required
                     value={formData.clientId}
                     onChange={(e) => {
+                      console.log("Client changed to:", e.target.value);
                       setFormData({ ...formData, clientId: e.target.value });
                       setSelectedLogs([]);
                     }}
@@ -301,6 +360,7 @@ export default function Billing() {
                     required
                     value={formData.taskId}
                     onChange={(e) => {
+                      console.log("Task changed to:", e.target.value);
                       setFormData({ ...formData, taskId: e.target.value });
                       setSelectedLogs([]);
                     }}
@@ -338,6 +398,17 @@ export default function Billing() {
                 />
               </div>
 
+              {/* Debug Info */}
+              {formData.clientId && formData.taskId && (
+                <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
+                  <strong>Debug Info:</strong>
+                  <div>Total approved logs loaded: {approvedLogs.length}</div>
+                  <div>
+                    Filtered logs for this client/task: {filteredLogs.length}
+                  </div>
+                </div>
+              )}
+
               {/* Approved Logs Selection */}
               {formData.clientId && formData.taskId && (
                 <>
@@ -367,6 +438,19 @@ export default function Billing() {
                           Please approve time logs first in the Day-End Review
                           page.
                         </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            console.log("Approved logs:", approvedLogs);
+                            console.log("Clients:", clients);
+                            console.log("Tasks:", tasks);
+                            console.log("Selected client:", formData.clientId);
+                            console.log("Selected task:", formData.taskId);
+                          }}
+                          className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          Click to see debug info in console
+                        </button>
                       </div>
                     ) : (
                       <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
